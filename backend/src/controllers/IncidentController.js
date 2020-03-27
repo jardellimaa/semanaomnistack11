@@ -1,13 +1,13 @@
 const connection = require('../database/connection');
 
 module.exports = {
-    async index(request, response){
+    async index(request, response) {
         const { page = 1 } = request.query;
         const [count] = await connection('incidents').count();
         const incidents = await connection('incidents')
             .join('ongs', 'ongs.id', '=', 'incidents.ong_id')
             .limit(5)
-            .offset((page-1)*5)
+            .offset((page - 1) * 5)
             .select([
                 'incidents.*',
                 'ongs.name',
@@ -17,11 +17,11 @@ module.exports = {
                 'ongs.uf'
             ]);
         response.header('X-Total-Count', count['count(*)']);
-        return response.json(incidents);
+        return response.json(formataIncidents(incidents));
     },
 
     async create(request, response) {
-        const { title , description, value } = request.body;
+        const { title, description, value } = request.body;
         const ong_id = request.headers.authorization;
         const [id] = await connection('incidents').insert({
             title,
@@ -32,17 +32,36 @@ module.exports = {
         return response.json({ id });
     },
 
-    async delete(request, response){
+    async delete(request, response) {
         const { id } = request.params;
         const ong_id = request.headers.authorization;
         const incident = await connection('incidents')
             .where('id', id)
             .select('ong_id')
             .first();
-        if(incident.ong_id != ong_id){
+        if (incident.ong_id != ong_id) {
             return response.status(401).json({ error: 'Operation not permitted.' });
         }
         await connection('incidents').where('id', id).delete();
         return response.status(204).send();
     }
 };
+
+function formataIncidents(incidents) {
+    return incidents.map(
+        incidents => ({
+            id: incidents.id,
+            title: incidents.title,
+            description: incidents.description,
+            value: incidents.value,
+            ong: {
+                id: incidents.ong_id,
+                name: incidents.name,
+                email: incidents.email,
+                whatsapp: incidents.whatsapp,
+                city: incidents.city,
+                uf: incidents.uf,
+            }
+        })
+    );
+}
